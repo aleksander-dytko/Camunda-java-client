@@ -10,6 +10,8 @@ import io.camunda.client.api.worker.JobClient;
 import io.camunda.client.api.worker.JobHandler;
 import io.camunda.client.api.worker.JobWorker;
 import io.camunda.client.impl.NoopCredentialsProvider;
+import io.camunda.client.impl.basicauth.BasicAuthCredentialsProvider;
+import io.camunda.client.impl.basicauth.BasicAuthCredentialsProviderBuilder;
 
 import java.net.URI;
 import java.time.Duration;
@@ -22,19 +24,57 @@ import java.util.Scanner;
  */
 public class Main {
 
-    private static final String grpcAddress = "http://localhost:26500";
-    private static final String restAddress = "http://localhost:8080/v2";
+    private static final String CAMUNDA_GRPC_ADDRESS = "http://localhost:26500";
+    private static final String CAMUNDA_REST_ADDRESS = "http://localhost:8080";
+    private static final String CAMUNDA_CLIENT_USERNAME = "aleks"; // or your username
+    private static final String CAMUNDA_CLIENT_PASSWORD = "demo"; // or your password
 
     public static void main(String[] args) {
+
         // For local development (no authentication)
-        CredentialsProvider credentialsProvider = new NoopCredentialsProvider();
+        //CredentialsProvider credentialsProvider = new NoopCredentialsProvider();
 
-        try (CamundaClient client = CamundaClient.newClientBuilder()
-                .grpcAddress(URI.create(grpcAddress)).usePlaintext()
-                .restAddress(URI.create(restAddress))
+
+        CredentialsProvider credentialsProvider = new BasicAuthCredentialsProviderBuilder()
+                .username(CAMUNDA_CLIENT_USERNAME)
+                .password(CAMUNDA_CLIENT_PASSWORD)
+                .build();
+
+
+
+        try (
+
+                /*
+                CamundaClient client = CamundaClient.newCloudClientBuilder()
+                .withClusterId("7f6f3276-3877-4aa6-a0c0-96594f6ac7c7")
+                .withClientId("c7YdKK4SLKtxXvX_jF8J_~eEwJas3.kX")
+                .withClientSecret("aXZNP0NLdRyaeJScAxAvWkv4.7EcHKMTdbAlU6urxE3-JDil_D4gX1zjjtQ7jBtA")
+                .withRegion("fra-1")
+                .build())
+
+                 */
+
+
+
+
+                // For local development (no authentication)
+                CamundaClient client = CamundaClient.newClientBuilder()
+                .grpcAddress(URI.create(CAMUNDA_GRPC_ADDRESS)).usePlaintext()
+                .restAddress(URI.create(CAMUNDA_REST_ADDRESS))
+                .preferRestOverGrpc(true)
                 .credentialsProvider(credentialsProvider)
-                .build()) {
+                .build())
 
+
+
+
+
+                //CamundaClient client = CamundaClient.newClientBuilder().usePlaintext().build())
+
+
+
+
+        {
             // Test the connection
             Topology topology= client.newTopologyRequest().send().join();
             System.out.println(topology);
@@ -69,6 +109,7 @@ public class Main {
                     .jobType(jobType)
                     .handler(new ExampleJobHandler())
                     .timeout(Duration.ofSeconds(10))
+                    .name("Aleksander's Job Worker")
                     .open()) {
 
                 System.out.println("Job worker opened and receiving jobs.");
