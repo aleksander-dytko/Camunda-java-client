@@ -9,14 +9,10 @@ import io.camunda.client.api.response.Topology;
 import io.camunda.client.api.worker.JobClient;
 import io.camunda.client.api.worker.JobHandler;
 import io.camunda.client.api.worker.JobWorker;
-import io.camunda.client.impl.NoopCredentialsProvider;
-import io.camunda.client.impl.basicauth.BasicAuthCredentialsProvider;
-import io.camunda.client.impl.basicauth.BasicAuthCredentialsProviderBuilder;
+import io.camunda.client.impl.oauth.OAuthCredentialsProviderBuilder;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Scanner;
 
 /**
  * Main class to connect to Camunda 8 Gateway using gRPC and REST.
@@ -24,10 +20,14 @@ import java.util.Scanner;
  */
 public class Main {
 
-    private static final String CAMUNDA_GRPC_ADDRESS = "http://localhost:26500";
-    private static final String CAMUNDA_REST_ADDRESS = "http://localhost:8080";
+    private static final String CAMUNDA_GRPC_ADDRESS = "grpcs://7f6f3276-3877-4aa6-a0c0-96594f6ac7c7.fra-1.zeebe.camunda.io:443";
+    private static final String CAMUNDA_REST_ADDRESS = "https://fra-1.zeebe.camunda.io/7f6f3276-3877-4aa6-a0c0-96594f6ac7c7";
     private static final String CAMUNDA_CLIENT_USERNAME = "aleks"; // or your username
     private static final String CAMUNDA_CLIENT_PASSWORD = "demo"; // or your password
+    private static final String oauthUrl = "https://login.cloud.camunda.io/oauth/token";
+    private static final String audience = "zeebe.camunda.io";
+    private static final String clientId = "7f6f3276-3877-4aa6-a0c0-96594f6ac7c7";
+    private static final String clientSecret = "tN5smyD.2IgBDe2kWi.lsVs6JdQSWMzcb6fV2FWv7qXpTryCW75Fe~H0Dv15-BWj";
 
     public static void main(String[] args) {
 
@@ -35,10 +35,26 @@ public class Main {
         //CredentialsProvider credentialsProvider = new NoopCredentialsProvider();
 
 
+        /*
         CredentialsProvider credentialsProvider = new BasicAuthCredentialsProviderBuilder()
                 .username(CAMUNDA_CLIENT_USERNAME)
                 .password(CAMUNDA_CLIENT_PASSWORD)
                 .build();
+
+         */
+
+
+        /*
+        CredentialsProvider credentialsProvider = new OAuthCredentialsProviderBuilder()
+                .authorizationServerUrl(oauthUrl)
+                .audience(audience)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                .build();
+
+         */
+
+
 
 
 
@@ -55,21 +71,29 @@ public class Main {
                  */
 
 
-
-
+                /*
                 // For local development (no authentication)
                 CamundaClient client = CamundaClient.newClientBuilder()
                 .grpcAddress(URI.create(CAMUNDA_GRPC_ADDRESS)).usePlaintext()
                 .restAddress(URI.create(CAMUNDA_REST_ADDRESS))
-                .preferRestOverGrpc(true)
                 .credentialsProvider(credentialsProvider)
                 .build())
 
+                 */
+
+                /*
+
+                CamundaClient client = CamundaClient.newClientBuilder()
+                .grpcAddress(URI.create(CAMUNDA_GRPC_ADDRESS))
+                .restAddress(URI.create(CAMUNDA_REST_ADDRESS))
+                .credentialsProvider(credentialsProvider)
+                .build())
+
+                 */
 
 
 
-
-                //CamundaClient client = CamundaClient.newClientBuilder().usePlaintext().build())
+                CamundaClient client = CamundaClient.newClientBuilder().build())
 
 
 
@@ -93,7 +117,7 @@ public class Main {
             final ProcessInstanceEvent processInstanceEvent = client.newCreateInstanceCommand()
                     .bpmnProcessId("exampleProcess")
                     .latestVersion()
-                    .variables(Map.of("orderId", "12345"))
+                    .variables(Map.of("orderId", "12345", "amount", 100.0))
                     .send()
                     .join();
 
@@ -107,38 +131,33 @@ public class Main {
 
             try (final JobWorker workerRegistration = client.newWorker()
                     .jobType(jobType)
-                    .handler(new ExampleJobHandler())
-                    .timeout(Duration.ofSeconds(10))
-                    .name("Aleksander's Job Worker")
+                    .handler(new EmailJobHandler())
                     .open()) {
 
-                System.out.println("Job worker opened and receiving jobs.");
+                System.out.println("Job worker opened and receiving jobs of type: " + jobType);
 
-                // run until System.in receives exit command
-                waitUntilSystemInput("exit");
-            }
-
-
-            }
-        }
-
-    private static void waitUntilSystemInput(final String exitCode) {
-        try (final Scanner scanner = new Scanner(System.in)) {
-            while (scanner.hasNextLine()) {
-                final String nextLine = scanner.nextLine();
-                if (nextLine.contains(exitCode)) {
-                    return;
-                }
+                // Keep the worker running
+                Thread.sleep(Duration.ofMinutes(10));
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
-    }
+        }
 
-    private static class ExampleJobHandler implements JobHandler {
+    private static class EmailJobHandler implements JobHandler {
         @Override
         public void handle(final JobClient client, final ActivatedJob job) {
-            // here: business logic that is executed with every job
-            System.out.println(job);
-            client.newCompleteCommand(job.getKey()).send().join();
+            // Extract variables from the job
+            final Map<String, Object> variables = job.getVariablesAsMap();
+
+            // Perform your business logic here
+            System.out.println("Processing job: " + job.getKey() + " for a process instance: " + job.getProcessInstanceKey());
+
+            // Complete the job (or use client.newFailCommand() if something goes wrong)
+            client.newCompleteCommand(job.getKey())
+                    .variables(Map.of("emailSent", true))
+                    .send()
+                    .join();
         }
     }
 }
